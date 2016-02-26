@@ -14,19 +14,21 @@ class RedmineExport{
     $sql =
       "SELECT I.id,
        I.subject AS name,
-       I.description AS issue_descr,
+       I.description AS description,
        I.root_id,
        I.parent_id,
        T.name AS tracker,
-       CONCAT( '<a href=\'http://redmine.actency.fr/issues/', I.Id, '\'>Lien redmine</a><br><br>', I.description, '<br><br>',
-                ( SELECT IFNULL ( GROUP_CONCAT( CONCAT( 'Le ', j.created_on, ' ',
-                                                          ( SELECT CONCAT (uj.firstname, ' ', uj.lastname)
-                                                          FROM users uj
-                                                          WHERE u.id = j.user_id LIMIT 1 ), ' à écrit :<br>', j.notes, '<br>' ) ), ' ' )
+       CONCAT(( SELECT IFNULL (
+         GROUP_CONCAT(
+           CONCAT(
+             'Le ', j.created_on, ' ',
+              ( SELECT CONCAT (uj.firstname, ' ', uj.lastname)
+              FROM users uj
+              WHERE u.id = j.user_id LIMIT 1 ), ' à écrit :<br>', j.notes, '<br><br>' ) ), ' ' )
                  FROM journals j
                  WHERE j.journalized_id = I.id
                    AND j.journalized_type = 'Issue'
-                   AND TRIM(j.notes) != '' ) ) AS description,
+                   AND TRIM(j.notes) != '' ) ) AS comments,
        CONCAT(( SELECT CONCAT ('#', id, ' : ', subject)
                  FROM issues
                  WHERE id = I.parent_id LIMIT 1 ) ) AS parent,
@@ -44,26 +46,39 @@ class RedmineExport{
       WHERE I.project_id = " . $redmine_project_id . "
       AND S.id = I.status_id
       AND T.id = I.tracker_id
-      ORDER BY 1";
+      GROUP BY root_id, parent_id, id
+      ORDER BY root_id, parent_id, id";
 
     $data = $this->db->query($sql);
     return $data;
   }
 
   public function render($data){
-     echo "<h1>Redmine export</h1>";
-      foreach($data as $issue){
-        echo "<ul>";
-        echo "<li><em>Lot : " . $issue->root . "</em></li>";
-        echo "<ul>";
-        echo "<li><em>Parent : " . $issue->parent . "</em></li>";
-        echo "<ul>";
-        echo "<li><h2>" . $issue->name . "</h2></li>";
-        echo "</ul>";
-        echo "</ul>";
-        echo "</ul>";
-        echo "<p>" . $issue->description . "</p>" . "<hr><br>";
+      $issues = [];
+      foreach($data as $key=>$issue){
+        if ($issue->root_id != $data[$key-1]->root_id) {
+          $issues[$issue->root_id];
+        }
       }
+
+      foreach($data as $key=>$issue){
+        if ($issue->root_id && $issue->parent_id && $issue->parent_id != $data[$key-1]->parent_id) {
+          $issues[$issue->root_id] .= $issue->parent_id;
+        }
+      }
+      var_dump($issues);
+        // echo "<ul>";
+        // echo "<li><em>Lot : " . $issue->root . "</em></li>";
+        // echo "<ul>";
+        // echo "<li><em>Parent : " . $issue->parent . "</em></li>";
+        // echo "<ul>";
+        // echo "<li><h2>" . $issue->name . "</h2></li>";
+        // echo "<a href='http://redmine.actency.fr/issues/". $issue->id . "'>http://redmine.actency.fr/issues/". $issue->id . "</a>";
+        // echo "</ul>";
+        // echo "</ul>";
+        // echo "</ul>";
+        // echo "<p>" . $issue->description . "</p>";
+        // echo "<p>" . $issue->comments . "</p>" . "<hr><br>";
 
   }
 
