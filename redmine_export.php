@@ -3,4 +3,5 @@ require "RedmineExport.php";
 
 $redmine = new RedmineExport();
 
-$redmine->export(176);
+$issues = $redmine->getData(176, 'ultra-tuning');
+$redmine->render($issues);
