@@ -57,13 +57,19 @@ class RedmineExport{
       $issues = [];
       foreach($data as $key=>$issue){
         if ($issue->root_id != $data[$key-1]->root_id) {
-          $issues[$issue->root_id];
+          $issues[$issue->root_id][] = $issue;
         }
       }
 
       foreach($data as $key=>$issue){
-        if ($issue->root_id && $issue->parent_id && $issue->parent_id != $data[$key-1]->parent_id) {
-          $issues[$issue->root_id] .= $issue->parent_id;
+        if ($issue->root_id && $issue->parent_id && $issue->parent_id != $data[$key-1]->parent_id && !in_array($issue->parent_id, $issues)) {
+          $issues[$issue->root_id][$issue->parent_id][] = $issue;
+        }
+      }
+
+      foreach($data as $key=>$issue){
+        if ($issue->parent_id == $issues[$issue->root_id][$issue->parent_id] || $issue->id == $issues[$issue->root_id][$issue->parent_id]) {
+          $issues[$issue->root_id][$issue->parent_id][$issue->id][] = $issue;
         }
       }
       var_dump($issues);
