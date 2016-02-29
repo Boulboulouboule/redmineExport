@@ -1,24 +1,23 @@
 <?php
 require 'Database.php';
 
-class RedmineExport{
+class RedmineExport {
 
   public $db;
 
   /*
    * Connection à la db lors de l'instanciation
    */
-  public function __construct($dbname="redmine", $user="root", $pass="", $host="localhost"){
+  public function __construct($dbname = "redmine", $user = "root", $pass = "", $host = "localhost") {
     $this->db = new Database($dbname, $user, $pass, $host);
   }
 
   /*
    * Recherche des issues correspondantes à l'id du projet
    */
-  public function getData($redmine_project_id){
+  public function getData($redmine_project_id) {
 
-    $sql =
-      "SELECT I.id,
+    $sql = "SELECT I.id,
        I.subject AS name,
        I.description AS description,
        I.root_id,
@@ -65,52 +64,102 @@ class RedmineExport{
    * @return array imbriqué :
    * $issues[root_id]['childrens'][parent_id]['childrens]['issue_id']
    */
-  public function parse($data){
+  public function parse($data) {
     $issues = [];
 
     /*
      * Index des root issues
      */
-    foreach($data as $key=>$issue){
-      if ($issue->root_id != $data[$key-1]->root_id && $issue->root_id == $issue->id ) {
+    foreach($data as $key => $issue) {
+      if($key != 0) {
+        if($issue->root_id != $data[$key - 1]->root_id && $issue->root_id == $issue->id) {
+          $issues[$issue->root_id]['issue'] = $issue;
+        }
+      }else {
         $issues[$issue->root_id]['issue'] = $issue;
+
       }
     }
 
     /*
      * Index des issues et parent
      */
-    foreach($data as $key=>$issue){
-      if (!empty($issue->parent_id)) {
-        if($issue->id == $issue->parent_id){
+    foreach($data as $key => $issue) {
+      if(!empty($issue->parent_id)) {
+        if($issue->id == $issue->parent_id) {
           $issues[$issue->root_id]['childrens'][$issue->id]['issue'] = $issue;
 
-        } elseif($issue->root_id == $issue->id || $issue->root_id == $issue->parent_id) {
-
-        } else {
+        }elseif($issue->parent_id == $issue->id){
+          $issues[$issue->root_id]['childrens'][$issue->parent_id]['childrens'][$issue->id] = $issue;
+        }else {
           $issues[$issue->root_id]['childrens'][$issue->parent_id]['childrens'][$issue->id] = $issue;
 
         }
       }
     }
 
+    /*
+     * Ajout des infos aux parents
+     */
+    foreach($data as $old) {
+      foreach($issues as $new){
+        if(empty($new[$old->root_id]['childrens'][$old->id]) && $old->root_id != $old->id){
+          $issues[$old->root_id]['childrens'][$old->id]['issue'] = $old;
+        }
+      }
+    }
     return $issues;
   }
 
-  public function render($data){
-      $this->parse($data);
-        // echo "<ul>";
-        // echo "<li><em>Lot : " . $issue->root . "</em></li>";
-        // echo "<ul>";
-        // echo "<li><em>Parent : " . $issue->parent . "</em></li>";
-        // echo "<ul>";
-        // echo "<li><h2>" . $issue->name . "</h2></li>";
-        // echo "<a href='http://redmine.actency.fr/issues/". $issue->id . "'>http://redmine.actency.fr/issues/". $issue->id . "</a>";
-        // echo "</ul>";
-        // echo "</ul>";
-        // echo "</ul>";
-        // echo "<p>" . $issue->description . "</p>";
-        // echo "<p>" . $issue->comments . "</p>" . "<hr><br>";
+  public function render($data, $lot = 'all') {
+    $issues = $this->parse($data);
+    if(!is_array($lot)){
+      strtolower($lot);
+      $condition = explode(',', (trim($lot)));
+    } else {
+      array_walk($lot, function(&$value){
+          $value = strtolower($value);
+      });
+      $condition = $lot;
+    }
+//    var_dump($condition);
+    foreach($issues as $root) {
+      if(in_array(strtolower($root['issue']->name), $condition) || strtolower($lot == 'all')){
+        echo "<ul>";
+        echo "<li><h2><a href='http://redmine.actency.fr/issues/" . $root['issue']->id . "'>Lot " . $root['issue']->root . "</a></h2></li>";
+        echo "<pre>" . $root['issue']->description . "</pre>";
+        echo "<pre>" . $root['issue']->comments . "</pre>" . "<br>";
+        if(!empty($root['childrens'])){
+          foreach($root['childrens'] as $parent) {
+            if(!empty($parent['issue'])) {
+              echo "<ul>";
+              echo "<li><h3>Parent : #" . $parent['issue']->id. " : " .$parent['issue']->name . "</h3></li>";
+              echo "<a href='http://redmine.actency.fr/issues/" . $parent['issue']->id . "'>http://redmine.actency.fr/issues/" . $parent['issue']->id . "</a>";
+              echo "<pre>" . $parent['issue']->description . "</pre>";
+              echo "<pre>" . $parent['issue']->comments . "</pre>" . "<br>";
+            }
+            if(!empty($parent['childrens'])){
+              foreach($parent['childrens'] as $child) {
+                echo "<ul>";
+                echo "<li><h4>" . $child->name . "</h4></li>";
+                echo "<a href='http://redmine.actency.fr/issues/" . $child->id . "'>http://redmine.actency.fr/issues/" . $child->id . "</a>";
+                echo "<pre>" . $child->description . "</pre>";
+                echo "<pre>" . $child->comments . "</pre>" . "<hr><br>";
+                echo "</ul>";
+
+              }
+
+            }
+            if(!empty($parent['issue'])) {
+              echo "</ul>";
+            }
+          }
+        }
+        echo "</ul>";
+
+      }
+
+    }
 
   }
 
