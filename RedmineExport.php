@@ -88,9 +88,7 @@ class RedmineExport {
       if(!empty($issue->parent_id)) {
         if($issue->id == $issue->parent_id) {
           $issues[$issue->root_id]['childrens'][$issue->id]['issue'] = $issue;
-
-        }elseif($issue->parent_id == $issue->id){
-          $issues[$issue->root_id]['childrens'][$issue->parent_id]['childrens'][$issue->id] = $issue;
+        }elseif($issue->parent_id == $issue->root_id) {
         }else {
           $issues[$issue->root_id]['childrens'][$issue->parent_id]['childrens'][$issue->id] = $issue;
 
@@ -102,8 +100,8 @@ class RedmineExport {
      * Ajout des infos aux parents
      */
     foreach($data as $old) {
-      foreach($issues as $new){
-        if(empty($new[$old->root_id]['childrens'][$old->id]) && $old->root_id != $old->id){
+      foreach($issues as $new) {
+        if(empty($new[$old->root_id]['childrens'][$old->id]) && $old->root_id != $old->id) {
           $issues[$old->root_id]['childrens'][$old->id]['issue'] = $old;
         }
       }
@@ -113,38 +111,43 @@ class RedmineExport {
 
   public function render($data, $lot = 'all') {
     $issues = $this->parse($data);
-    if(!is_array($lot)){
+    if(!is_array($lot)) {
       strtolower($lot);
       $condition = explode(',', (trim($lot)));
-    } else {
-      array_walk($lot, function(&$value){
-          $value = strtolower($value);
+    }else {
+      array_walk($lot, function(&$value) {
+        $value = strtolower($value);
       });
       $condition = $lot;
     }
 //    var_dump($condition);
     foreach($issues as $root) {
-      if(in_array(strtolower($root['issue']->name), $condition) || strtolower($lot == 'all')){
+      if(in_array(strtolower($root['issue']->name), $condition) || strtolower($lot == 'all')) {
         echo "<ul>";
         echo "<li><h2><a href='http://redmine.actency.fr/issues/" . $root['issue']->id . "'>Lot " . $root['issue']->root . "</a></h2></li>";
-        echo "<pre>" . $root['issue']->description . "</pre>";
+        echo "<pre>" . htmlspecialchars($root['issue']->description) . "</pre>";
         echo "<pre>" . $root['issue']->comments . "</pre>" . "<br>";
-        if(!empty($root['childrens'])){
+        if(!empty($root['childrens'])) {
           foreach($root['childrens'] as $parent) {
             if(!empty($parent['issue'])) {
               echo "<ul>";
-              echo "<li><h3>Parent : #" . $parent['issue']->id. " : " .$parent['issue']->name . "</h3></li>";
+              echo "<li><h3>#" . $parent['issue']->id . " : " . $parent['issue']->name . "</h3></li>";
               echo "<a href='http://redmine.actency.fr/issues/" . $parent['issue']->id . "'>http://redmine.actency.fr/issues/" . $parent['issue']->id . "</a>";
-              echo "<pre>" . $parent['issue']->description . "</pre>";
+              echo "<pre>" . htmlspecialchars($parent['issue']->description) . "</pre>";
               echo "<pre>" . $parent['issue']->comments . "</pre>" . "<br>";
             }
-            if(!empty($parent['childrens'])){
+            if(!empty($parent['childrens'])) {
               foreach($parent['childrens'] as $child) {
                 echo "<ul>";
                 echo "<li><h4>" . $child->name . "</h4></li>";
                 echo "<a href='http://redmine.actency.fr/issues/" . $child->id . "'>http://redmine.actency.fr/issues/" . $child->id . "</a>";
-                echo "<pre>" . $child->description . "</pre>";
-                echo "<pre>" . $child->comments . "</pre>" . "<hr><br>";
+                if($child->description) {
+                  echo "<pre>" . htmlspecialchars($child->description) . "</pre>";
+                }
+                if($child->comments){
+                  echo "<pre>" . $child->comments . "</pre>";
+                }
+                echo "<hr><br>";
                 echo "</ul>";
 
               }
@@ -156,7 +159,6 @@ class RedmineExport {
           }
         }
         echo "</ul>";
-
       }
 
     }
