@@ -5,10 +5,16 @@ class RedmineExport{
 
   public $db;
 
+  /*
+   * Connection à la db lors de l'instanciation
+   */
   public function __construct($dbname="redmine", $user="root", $pass="", $host="localhost"){
     $this->db = new Database($dbname, $user, $pass, $host);
   }
 
+  /*
+   * Recherche des issues correspondantes à l'id du projet
+   */
   public function getData($redmine_project_id){
 
     $sql =
@@ -53,26 +59,46 @@ class RedmineExport{
     return $data;
   }
 
+  /**
+   * Classement des issues dans un array.
+   * @param $data = $issues de getData()
+   * @return array imbriqué :
+   * $issues[root_id]['childrens'][parent_id]['childrens]['issue_id']
+   */
+  public function parse($data){
+    $issues = [];
+
+    /*
+     * Index des root issues
+     */
+    foreach($data as $key=>$issue){
+      if ($issue->root_id != $data[$key-1]->root_id && $issue->root_id == $issue->id ) {
+        $issues[$issue->root_id]['issue'] = $issue;
+      }
+    }
+
+    /*
+     * Index des issues et parent
+     */
+    foreach($data as $key=>$issue){
+      if (!empty($issue->parent_id)) {
+        if($issue->id == $issue->parent_id){
+          $issues[$issue->root_id]['childrens'][$issue->id]['issue'] = $issue;
+
+        } elseif($issue->root_id == $issue->id || $issue->root_id == $issue->parent_id) {
+
+        } else {
+          $issues[$issue->root_id]['childrens'][$issue->parent_id]['childrens'][$issue->id] = $issue;
+
+        }
+      }
+    }
+
+    return $issues;
+  }
+
   public function render($data){
-      $issues = [];
-      foreach($data as $key=>$issue){
-        if ($issue->root_id != $data[$key-1]->root_id) {
-          $issues[$issue->root_id]['issue'] = $issue;
-        }
-      }
-
-      foreach($data as $key=>$issue){
-        if ($issue->root_id && $issue->parent_id && $issue->parent_id != $data[$key-1]->parent_id && !in_array($issue->parent_id, $issues)) {
-          $issues[$issue->root_id]['childrens'][$issue->parent_id]['issue'] = $issue;
-        }
-      }
-
-      foreach($data as $key=>$issue){
-        if (isset($issues[$issue->root_id]['childrens'][$issue->parent_id]) || isset($issues[$issue->root_id]['childrens'][$issue->parent_id])) {
-          $issues[$issue->root_id]['childrens'][$issue->parent_id]['childrens'][$issue->id]['issue'] = $issue;
-        }
-      }
-      var_dump($issues);
+      $this->parse($data);
         // echo "<ul>";
         // echo "<li><em>Lot : " . $issue->root . "</em></li>";
         // echo "<ul>";
